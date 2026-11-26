@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
+import type { CaptionLanguage } from "../models";
 import type { Row, Ticket } from "../tickets";
 import { formatClock } from "../text/transcript";
 
 type TicketsProps = {
   rows: Row[];
   translateLive: boolean;
+  source: CaptionLanguage;
+  target: CaptionLanguage;
   onEdit: (id: number, german: string) => void;
   onTranslate: (id: number, german: string) => void;
 };
 
-export function Tickets({ rows, translateLive, onEdit, onTranslate }: TicketsProps) {
+export function Tickets({ rows, translateLive, source, target, onEdit, onTranslate }: TicketsProps) {
   if (rows.length === 0) return null;
   return (
     <div className="tickets">
@@ -23,6 +26,8 @@ export function Tickets({ rows, translateLive, onEdit, onTranslate }: TicketsPro
             key={row.ticket.id}
             ticket={row.ticket}
             translateLive={translateLive}
+            source={source}
+            target={target}
             onEdit={onEdit}
             onTranslate={onTranslate}
           />
@@ -35,11 +40,15 @@ export function Tickets({ rows, translateLive, onEdit, onTranslate }: TicketsPro
 function TicketCard({
   ticket,
   translateLive,
+  source,
+  target,
   onEdit,
   onTranslate,
 }: {
   ticket: Ticket;
   translateLive: boolean;
+  source: CaptionLanguage;
+  target: CaptionLanguage;
   onEdit: (id: number, german: string) => void;
   onTranslate: (id: number, german: string) => void;
 }) {
@@ -83,10 +92,11 @@ function TicketCard({
         </div>
         {editing ? (
           <textarea
-            lang="de"
+            lang={source.lang}
+            dir={source.dir}
             className="german-edit"
             value={draft}
-            aria-label="Correct the German"
+            aria-label={`Correct the ${source.name}`}
             onChange={(event) => setDraft(event.target.value)}
             onBlur={commit}
             onKeyDown={(event) => {
@@ -99,21 +109,24 @@ function TicketCard({
             autoFocus
           />
         ) : (
-          <p lang="de" className="german">
+          <p lang={source.lang} dir={source.dir} className="german">
             {ticket.german}
             {live ? <span className="caret" aria-hidden="true" /> : null}
           </p>
         )}
       </div>
-      <div className="english-side">
-        <p className="side-kicker">English</p>
+      <div className="english-side" dir={target.dir}>
+        <p className="side-kicker" dir={target.dir}>
+          {target.name}
+        </p>
         {ticket.english ? (
-          <p lang="en" className="english">
+          <p lang={target.lang} dir={target.dir} className="english">
             {ticket.english}
           </p>
         ) : (
           <EnglishPending
             ticket={ticket}
+            targetName={target.name}
             translateLive={translateLive}
             onTranslate={() => onTranslate(ticket.id, ticket.german)}
           />
@@ -125,10 +138,12 @@ function TicketCard({
 
 function EnglishPending({
   ticket,
+  targetName,
   translateLive,
   onTranslate,
 }: {
   ticket: Ticket;
+  targetName: string;
   translateLive: boolean;
   onTranslate: () => void;
 }) {
@@ -146,7 +161,7 @@ function EnglishPending({
     return <p className="english-wait">Translating…</p>;
   }
   if (ticket.phase === "draft") {
-    return <p className="english-wait">English follows when the phrase settles.</p>;
+    return <p className="english-wait">{targetName} follows when the phrase settles.</p>;
   }
   return (
     <div className="english-pending">

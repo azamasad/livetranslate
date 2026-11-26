@@ -14,10 +14,13 @@ export type ReadyInfo = {
   note: string;
 };
 
-export type EngineRequest =
-  | { type: "load"; id: string; asrModel: string; mtModel: string | null; device: ComputeDevice }
-  | { type: "transcribe"; id: string; audio: Float32Array; sampleRate: number }
-  | { type: "translate"; id: string; text: string };
+export type SpeechRequest =
+  | { type: "load"; id: string; asrModel: string; device: ComputeDevice; language: string | null }
+  | { type: "transcribe"; id: string; audio: Float32Array; sampleRate: number };
+
+export type TranslateRequest =
+  | { type: "load"; id: string; model: string; srcLang: string | null; tgtLang: string | null }
+  | { type: "translate"; id: string; text: string; prefix: string };
 
 export type EngineEvent =
   | { type: "progress"; progress: ModelProgress }
@@ -33,9 +36,10 @@ export type ProgressGroup = {
 };
 
 export function progressLabel(name: string): string {
-  if (name.includes("whisper")) return "German speech";
-  if (name.includes("opus")) return "English translation";
-  if (!name) return "Model files";
+  const model = name.toLowerCase();
+  if (model.includes("whisper")) return model.includes(".en") ? "English speech" : "German speech";
+  if (model.includes("nllb") || model.includes("en-mul") || model.includes("en-fa")) return "Persian translation";
+  if (model.includes("opus") || model.includes("de-en")) return "English translation";
   return "Model files";
 }
 

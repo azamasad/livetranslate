@@ -33,5 +33,13 @@ describe("ollamaTranslationRequest", () => {
     expect(body.stream).toBe(false);
     const messages = body.messages as { role: string; content: string }[];
     expect(messages[1]?.content).toBe("Guten Abend.");
+    expect(messages[0]?.content).toContain("spoken German");
+  });
+
+  it("asks for Persian script when that is the target", () => {
+    const body = ollamaTranslationRequest("aya-expanse:8b", "Let's start.", { source: "English", target: "Persian" });
+    const messages = body.messages as { content: string }[];
+    expect(messages[0]?.content).toContain("Persian script");
+    expect(messages[1]?.content).toBe("Let's start.");
   });
 });

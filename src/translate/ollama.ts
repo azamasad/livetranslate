@@ -34,17 +34,21 @@ export function readOllamaTranslation(payload: unknown): string {
   return content.replace(/^["“]|["”]$/g, "").trim();
 }
 
-export function ollamaTranslationRequest(model: string, german: string): Record<string, unknown> {
+export function ollamaTranslationRequest(
+  model: string,
+  text: string,
+  languages: { source: string; target: string } = { source: "German", target: "English" },
+): Record<string, unknown> {
+  const script = languages.target === "Persian" ? " Write in Persian script." : "";
   return {
     model,
     stream: false,
     messages: [
       {
         role: "system",
-        content:
-          "You translate spoken German into natural English for live captions. Return only the English translation. Keep names as spoken. Do not add notes, quotes, or alternatives. If the German is a fragment, translate the fragment.",
+        content: `You translate spoken ${languages.source} into natural ${languages.target} for live captions. Return only the ${languages.target} translation. Keep names as spoken. Do not add notes, quotes, or alternatives. If the ${languages.source} is a fragment, translate the fragment.${script}`,
       },
-      { role: "user", content: german },
+      { role: "user", content: text },
     ],
     options: { temperature: 0 },
     keep_alive: "30m",
@@ -64,7 +68,12 @@ export async function fetchOllamaModels(signal?: AbortSignal): Promise<OllamaMod
   return parseOllamaTags(await response.json());
 }
 
-export async function translateWithOllama(model: string, german: string, signal?: AbortSignal): Promise<string> {
+export async function translateWithOllama(
+  model: string,
+  text: string,
+  languages?: { source: string; target: string },
+  signal?: AbortSignal,
+): Promise<string> {
   if (!model.trim()) {
     throw new Error("Choose an Ollama model in Tuning. It has to be one you have already pulled.");
   }
@@ -74,7 +83,7 @@ export async function translateWithOllama(model: string, german: string, signal?
       method: "POST",
       signal,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ollamaTranslationRequest(model, german)),
+      body: JSON.stringify(ollamaTranslationRequest(model, text, languages)),
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;

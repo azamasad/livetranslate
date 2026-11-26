@@ -18,6 +18,7 @@ export type SessionHandlers = {
 export type SessionTuning = {
   sensitivity: number;
   silenceMs: number;
+  maxSegmentMs?: number;
 };
 
 function sleep(ms: number): Promise<void> {
@@ -83,6 +84,7 @@ export class ListenSession {
       sampleRate: this.capture.sampleRate,
       sensitivity: tuning.sensitivity,
       silenceMs: tuning.silenceMs,
+      ...(tuning.maxSegmentMs ? { maxSegmentMs: tuning.maxSegmentMs } : {}),
     });
 
     const track = stream.getAudioTracks()[0] ?? null;
