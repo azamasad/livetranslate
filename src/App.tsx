@@ -332,7 +332,7 @@ export function App() {
               <rect x="18" y="5" width="11" height="22" />
             </svg>
             <div>
-              <h1>Nebenbei</h1>
+              <h1>Zeinab</h1>
               <p>{pair.tagline}</p>
             </div>
           </div>
@@ -493,7 +493,7 @@ export function App() {
               const url = URL.createObjectURL(blob);
               const link = document.createElement("a");
               link.href = url;
-              link.download = "nebenbei.txt";
+              link.download = "zeinab.txt";
               link.click();
               URL.revokeObjectURL(url);
             }}

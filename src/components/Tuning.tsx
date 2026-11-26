@@ -73,18 +73,6 @@ export function Tuning({ settings, locked, onChange }: TuningProps) {
         <fieldset disabled={locked}>
           <legend>{pair.target.name}</legend>
           <div className="choice-list">
-            <label className={settings.engine === "builtin" && builtinKind === "quick" ? "choice is-selected" : "choice"}>
-              <input
-                type="radio"
-                name="engine"
-                checked={settings.engine === "builtin" && builtinKind === "quick"}
-                onChange={() => onChange({ engine: "builtin", translation: "quick" })}
-              />
-              <span>
-                <strong>{pair.quick.label}</strong>
-                <small>{pair.quick.detail}</small>
-              </span>
-            </label>
             {clear ? (
               <label className={settings.engine === "builtin" && builtinKind === "clear" ? "choice is-selected" : "choice"}>
                 <input
@@ -99,6 +87,18 @@ export function Tuning({ settings, locked, onChange }: TuningProps) {
                 </span>
               </label>
             ) : null}
+            <label className={settings.engine === "builtin" && builtinKind === "quick" ? "choice is-selected" : "choice"}>
+              <input
+                type="radio"
+                name="engine"
+                checked={settings.engine === "builtin" && builtinKind === "quick"}
+                onChange={() => onChange({ engine: "builtin", translation: "quick" })}
+              />
+              <span>
+                <strong>{pair.quick.label}</strong>
+                <small>{pair.quick.detail}</small>
+              </span>
+            </label>
             <label className={settings.engine === "ollama" ? "choice is-selected" : "choice"}>
               <input
                 type="radio"

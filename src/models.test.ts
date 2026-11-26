@@ -7,12 +7,12 @@ describe("language pairs", () => {
     expect(builtinTranslator(DEFAULT_SETTINGS).id).toBe("Xenova/opus-mt-de-en");
   });
 
-  it("uses a fast Persian model, with a clearer one on request", () => {
+  it("starts English to Persian on the clearer model", () => {
     const settings = { ...DEFAULT_SETTINGS, pair: "en-fa" as const };
     expect(pairOf(settings).source.whisper).toBeNull();
     expect(pairOf(settings).speech.base.id).toBe("Xenova/whisper-base.en");
-    expect(builtinTranslator(settings).prefix).toBe(">>pes<<");
-    expect(builtinTranslator({ ...settings, translation: "clear" }).tgtLang).toBe("pes_Arab");
+    expect(builtinTranslator(settings).tgtLang).toBe("pes_Arab");
+    expect(builtinTranslator({ ...settings, translation: "quick" }).prefix).toBe(">>pes<<");
     expect(pairOf(settings).maxSegmentMs).toBeLessThan(pairOf(DEFAULT_SETTINGS).maxSegmentMs);
   });
 

@@ -1,13 +1,15 @@
-# Nebenbei
+# Zeinab
 
-Nebenbei listens and shows each phrase as a line you can read at your own pace. The original stays on the left. The translation sits on the right.
+Zeinab listens and shows each phrase as a line you can read at your own pace. The original stays on the left. The translation sits on the right.
 
 Two pairs are built in:
 
 - **German → English**
 - **English → Persian**, for following fast spoken English. Open [http://127.0.0.1:5173/?pair=en-fa](http://127.0.0.1:5173/?pair=en-fa) once and that choice stays.
 
-Speech recognition and the built-in translation run in the browser. There is no API key. The audio is not sent to a transcription service. The first start downloads the models from Hugging Face into the browser cache. Later starts reuse that copy. English and Persian run in separate workers, so a slow translation does not freeze the transcript.
+Speech recognition and the built-in translation run in the browser. There is no API key. The audio and the lines are not sent anywhere, and they are not saved. Close the tab and they are gone. The only thing the browser remembers is the settings you picked, such as the language pair and the text size. The first start downloads the model files from Hugging Face into this browser. That download is the model, not the audio. Later starts reuse that copy. English and Persian run in separate workers, so a slow translation does not freeze the transcript.
+
+**Save text** writes a file only when you click it. That file stays on this computer.
 
 ## Run it
 
@@ -34,15 +36,15 @@ If the text lags the voice, switch the speech model to **Fast** in Tuning. **Sha
 
 ## English to Persian
 
-Choose **English → Persian** at the top, then **Microphone** if the English is in the room, or **Video tab** if it is playing in the browser. **Balanced** speech and **Quick Persian** are the pair that keeps up on a regular laptop, including an older Intel ultrabook with no separate graphics card. The English line shows up while the person is still talking. Persian is filled in when the phrase settles.
+Choose **English → Persian** at the top, then **Microphone** if the English is in the room, or **Video tab** if it is playing in the browser. **Balanced** speech and **Clearer Persian** are the ones to start with. The English line shows up while the person is still talking. Persian is filled in when the phrase settles, and on a regular laptop that can take a few seconds.
 
-**Clearer Persian** is a larger model. The wording is more natural, and on that kind of laptop it can sit a few lines behind. The English side still moves.
+**Quick Persian** is smaller and faster. The wording is rougher. Use it if the Persian falls too far behind.
 
-The first English start downloads about 80 MB for speech and about 120 MB for Quick Persian. Clearer Persian is about 900 MB. Chrome or Edge is the browser to use.
+The first English start downloads about 80 MB for speech and about 900 MB for Clearer Persian. Quick Persian is about 120 MB. Chrome or Edge is the browser to use.
 
 ## Ollama
 
-The built-in translator is the right default for live lines. If you already run [Ollama](https://ollama.com), Tuning can send the translation there instead. Start Ollama first. Nebenbei talks to it only through this local page, at `127.0.0.1:11434`. A small model is the one that can keep up.
+The built-in translator is the right default for live lines. If you already run [Ollama](https://ollama.com), Tuning can send the translation there instead. Start Ollama first. Zeinab talks to it only on this computer, at `127.0.0.1:11434`. A small model is the one that can keep up.
 
 ## Checks
 
