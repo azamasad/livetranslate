@@ -24,6 +24,53 @@ import { translateWithOllama } from "./translate/ollama";
 
 type Phase = "idle" | "loading" | "listening";
 
+type MicPermission = "unknown" | "granted" | "denied" | "prompt";
+
+function useMicPermission(active: boolean): MicPermission {
+  const [state, setState] = useState<MicPermission>("unknown");
+
+  useEffect(() => {
+    if (!active || !navigator.permissions?.query) return;
+    let permission: PermissionStatus | null = null;
+    let cancelled = false;
+    const apply = () => {
+      if (!permission || cancelled) return;
+      const next = permission.state;
+      setState(next === "granted" || next === "denied" || next === "prompt" ? next : "unknown");
+    };
+    navigator.permissions
+      .query({ name: "microphone" as PermissionName })
+      .then((status) => {
+        permission = status;
+        apply();
+        permission.onchange = apply;
+      })
+      .catch(() => {
+        if (!cancelled) setState("unknown");
+      });
+    return () => {
+      cancelled = true;
+      if (permission) permission.onchange = null;
+    };
+  }, [active]);
+
+  return active ? state : "unknown";
+}
+
+function listenStatus(phase: Phase, source: ListenSource, mic: MicPermission, quiet: boolean): string {
+  if (phase === "loading") return "Preparing";
+  if (phase === "listening") {
+    if (source === "mic") return quiet ? "Microphone on, no voice yet" : "Microphone is on";
+    return "Listening";
+  }
+  if (source === "mic") {
+    if (mic === "granted") return "Microphone allowed";
+    if (mic === "denied") return "Microphone blocked";
+    return "Start will ask for the microphone";
+  }
+  return "Ready";
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "Something went wrong.";
 }
@@ -320,6 +367,8 @@ export function App() {
   const lineCount = useMemo(() => rows.filter((row) => row.kind === "line").length, [rows]);
   const locked = phase !== "idle";
   const pair = pairOf(settings);
+  const micPermission = useMicPermission(settings.source === "mic");
+  const statusText = listenStatus(phase, settings.source, micPermission, quiet);
 
   useEffect(() => {
     document.title = pair.title;
@@ -343,7 +392,7 @@ export function App() {
 
           <div className="listen-state" role="status">
             <span className={phase === "listening" ? "dot is-on" : "dot"} />
-            <span>{phase === "listening" ? "Listening" : phase === "loading" ? "Preparing" : "Ready"}</span>
+            <span>{statusText}</span>
             <LevelMeter levelRef={levelRef} active={phase === "listening"} />
           </div>
 

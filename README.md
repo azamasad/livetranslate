@@ -13,7 +13,13 @@ Speech recognition and the built-in translation run in the browser. There is no 
 
 ## On a Windows laptop
 
-The one-time setup and the everyday start are in the messages that came with this branch. After setup, double-click `Zeinab.hta` in the `Desktop\Zeinab` folder. **Start** opens the page. Leave the black window open while you listen. `Start Zeinab.bat` does the same thing if Windows opens the `.hta` file in a browser.
+Each time, from the `Desktop\Zeinab` folder:
+
+```powershell
+pnpm start
+```
+
+The browser opens the same page where the lines appear. **Microphone allowed** means Chrome can hear the room. **Start listening** begins, and **Stop** ends it. The meter beside that status moves when someone is speaking. Leave the terminal window open while you listen.
 
 ## Run it
 

@@ -147,8 +147,8 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  pair: "de-en",
-  source: "tab",
+  pair: "en-fa",
+  source: "mic",
   model: "base",
   device: "wasm",
   engine: "builtin",
