@@ -32,7 +32,11 @@ function initialSettings(): Settings {
   const loaded = typeof localStorage === "undefined" ? { ...DEFAULT_SETTINGS } : loadSettings();
   const requested = typeof window === "undefined" ? null : pairFromSearch(window.location.search);
   if (!requested || loaded.pair === requested) return loaded;
-  const next = { ...loaded, pair: requested };
+  const next = {
+    ...loaded,
+    pair: requested,
+    ...(requested === "en-fa" ? { source: "mic" as const } : {}),
+  };
   saveSettings(next);
   return next;
 }
@@ -411,7 +415,7 @@ export function App() {
                 aria-checked={settings.pair === id}
                 className={settings.pair === id ? "is-selected" : undefined}
                 disabled={locked}
-                onClick={() => updateSettings({ pair: id })}
+                onClick={() => updateSettings(id === "en-fa" ? { pair: id, source: "mic" } : { pair: id })}
               >
                 {PAIRS[id].label}
               </button>
@@ -546,7 +550,7 @@ function Example({ source, pairId }: { source: ListenSource; pairId: PairId }) {
         <p>
           {source === "tab"
             ? "Play the video in another browser tab. Start listening, choose that tab, and turn on “Share tab audio”. The video keeps playing where it is. This page only reads the sound."
-            : "The microphone hears the room, including a video on your speakers. A shared browser tab is clearer when you can use one."}
+            : "The microphone hears speech around the laptop. Chrome asks for the microphone. Allow it, and point the laptop toward the person speaking."}
         </p>
         <p>
           Each phrase becomes a line. {pair.source.name} stays on the left. {pair.target.name} arrives on the right when the phrase settles, or when you ask for it. Scroll up whenever you want to reread.

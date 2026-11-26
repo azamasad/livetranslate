@@ -36,7 +36,7 @@ If the text lags the voice, switch the speech model to **Fast** in Tuning. **Sha
 
 ## English to Persian
 
-Choose **English → Persian** at the top, then **Microphone** if the English is in the room, or **Video tab** if it is playing in the browser. **Balanced** speech and **Clearer Persian** are the ones to start with. The English line shows up while the person is still talking. Persian is filled in when the phrase settles, and on a regular laptop that can take a few seconds.
+Choose **English → Persian**. That selects the microphone, so speech in the room is heard even when it is not playing on the laptop. Chrome asks for the microphone. Allow it. **Video tab** is there for a video playing in the browser. **Balanced** speech and **Clearer Persian** are the ones to start with. The English line shows up while the person is still talking. Persian is filled in when the phrase settles, and on a regular laptop that can take a few seconds.
 
 **Quick Persian** is smaller and faster. The wording is rougher. Use it if the Persian falls too far behind.
 

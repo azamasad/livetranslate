@@ -15,15 +15,22 @@ export async function acquireAudio(source: ListenSource): Promise<MediaStream> {
 
   try {
     if (source === "mic") {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 1,
-        },
-        video: false,
-      });
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: { ideal: false },
+            noiseSuppression: { ideal: false },
+            autoGainControl: { ideal: false },
+            channelCount: { ideal: 1 },
+          },
+          video: false,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "OverconstrainedError") {
+          return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        }
+        throw error;
+      }
     }
 
     const stream = await navigator.mediaDevices.getDisplayMedia({
