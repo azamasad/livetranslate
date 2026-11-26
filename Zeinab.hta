@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Zeinab</title>
+  <hta:application
+    id="zeinab"
+    applicationname="Zeinab"
+    border="thin"
+    caption="yes"
+    showintaskbar="yes"
+    singleinstance="yes"
+    scroll="no"
+    windowstate="normal"
+  />
+  <style>
+    html, body { margin: 0; height: 100%; background: #141210; color: #f4efe4; font-family: "Segoe UI", sans-serif; }
+    main { padding: 36px 32px; }
+    h1 { margin: 0 0 8px; font-size: 32px; font-weight: 600; }
+    p { margin: 0 0 16px; color: #9a9186; font-size: 15px; line-height: 1.45; }
+    button { font: inherit; font-size: 16px; background: #f4efe4; color: #1d1a16; border: 0; border-radius: 999px; padding: 12px 22px; cursor: pointer; }
+    #status { min-height: 3em; }
+  </style>
+  <script type="text/javascript">
+    function folder() {
+      var path = decodeURIComponent(location.pathname);
+      if (path.charAt(0) === "/") path = path.slice(1);
+      path = path.replace(/\//g, "\\");
+      return path.replace(/\\[^\\]+$/, "");
+    }
+
+    function pageIsUp() {
+      try {
+        var xhr = new ActiveXObject("MSXML2.XMLHTTP");
+        xhr.open("GET", "http://127.0.0.1:5173/", false);
+        xhr.send();
+        return xhr.status >= 200 && xhr.status < 500;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function openApp(shell) {
+      shell.Run("cmd /c start \"\" \"http://127.0.0.1:5173/?pair=en-fa\"", 0, false);
+    }
+
+    function waitAndOpen(shell, tries) {
+      var status = document.getElementById("status");
+      if (pageIsUp()) {
+        openApp(shell);
+        status.innerText = "Zeinab is open in the browser. Leave the black window open while you listen.";
+        return;
+      }
+      if (tries <= 0) {
+        status.innerText = "Still starting. When the black window shows a local address, open Chrome to http://127.0.0.1:5173/?pair=en-fa";
+        return;
+      }
+      window.setTimeout(function () {
+        waitAndOpen(shell, tries - 1);
+      }, 1000);
+    }
+
+    function start() {
+      var status = document.getElementById("status");
+      var shell = new ActiveXObject("WScript.Shell");
+      if (pageIsUp()) {
+        openApp(shell);
+        status.innerText = "Zeinab is already running. Opened it in the browser.";
+        return;
+      }
+      status.innerText = "Starting on this laptop…";
+      shell.CurrentDirectory = folder();
+      shell.Run("cmd /k \"set PATH=%ProgramFiles%\\nodejs;%AppData%\\npm;%PATH% && pnpm start\"", 1, false);
+      waitAndOpen(shell, 40);
+    }
+  </script>
+</head>
+<body>
+  <main>
+    <h1>Zeinab</h1>
+    <p>English on the left, Persian on the right. The microphone hears the room. The sound stays on this laptop.</p>
+    <button type="button" onclick="start()">Start</button>
+    <p id="status"></p>
+  </main>
+</body>
+</html>
