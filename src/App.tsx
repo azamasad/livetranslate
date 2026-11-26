@@ -3,15 +3,18 @@ import { Tickets } from "./components/Tickets";
 import { Tuning } from "./components/Tuning";
 import { ListenSession } from "./audio/session";
 import { acquireAudio } from "./audio/capture";
-import { Engine } from "./engine/client";
+import { Engine, TranslateEngine } from "./engine/client";
 import { formatBytes, groupProgress, type ModelProgress, type ProgressGroup, type ReadyInfo } from "./engine/protocol";
 import {
   DEFAULT_SETTINGS,
-  SPEECH_MODELS,
-  TRANSLATION_MODEL,
+  PAIRS,
+  builtinTranslator,
   loadSettings,
+  pairFromSearch,
+  pairOf,
   saveSettings,
   type ListenSource,
+  type PairId,
   type Settings,
 } from "./models";
 import { reduceRows, type Row } from "./tickets";
@@ -25,10 +28,17 @@ function errorText(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "Something went wrong.";
 }
 
+function initialSettings(): Settings {
+  const loaded = typeof localStorage === "undefined" ? { ...DEFAULT_SETTINGS } : loadSettings();
+  const requested = typeof window === "undefined" ? null : pairFromSearch(window.location.search);
+  if (!requested || loaded.pair === requested) return loaded;
+  const next = { ...loaded, pair: requested };
+  saveSettings(next);
+  return next;
+}
+
 export function App() {
-  const [settings, setSettings] = useState<Settings>(() =>
-    typeof localStorage === "undefined" ? DEFAULT_SETTINGS : loadSettings(),
-  );
+  const [settings, setSettings] = useState<Settings>(initialSettings);
   const [rows, setRows] = useState<Row[]>([]);
   const [phase, setPhase] = useState<Phase>("idle");
   const [banner, setBanner] = useState("");
@@ -45,6 +55,7 @@ export function App() {
   const rowsRef = useRef(rows);
   const phaseRef = useRef(phase);
   const engineRef = useRef<Engine | null>(null);
+  const translatorRef = useRef<TranslateEngine | null>(null);
   const sessionRef = useRef<ListenSession | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,6 +73,7 @@ export function App() {
   phaseRef.current = phase;
 
   if (!engineRef.current) engineRef.current = new Engine();
+  if (!translatorRef.current) translatorRef.current = new TranslateEngine();
 
   const releaseStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -74,16 +86,29 @@ export function App() {
     const from = german.trim();
     if (!from) return;
     const engine = engineRef.current;
-    if (!engine) return;
+    const translator = translatorRef.current;
+    if (!engine || !translator) return;
     if (translations.current.get(id) === from) return;
     translations.current.set(id, from);
     setRows((current) => reduceRows(current, { type: "translate-start", id }));
     try {
       const current = settingsRef.current;
-      const english =
-        current.engine === "ollama"
-          ? await translateWithOllama(current.ollamaModel, from)
-          : await engine.translate(from);
+      const pair = pairOf(current);
+      const choice = builtinTranslator(current);
+      let english: string;
+      if (current.engine === "ollama") {
+        english = await translateWithOllama(current.ollamaModel, from, {
+          source: pair.source.name,
+          target: pair.target.name,
+        });
+      } else {
+        await translator.ensure({
+          model: choice.id,
+          srcLang: choice.srcLang ?? null,
+          tgtLang: choice.tgtLang ?? null,
+        });
+        english = await translator.translate(from, choice.prefix ?? "");
+      }
       if (translations.current.get(id) !== from) return;
       setRows((currentRows) =>
         reduceRows(currentRows, {
@@ -144,7 +169,6 @@ export function App() {
       },
       onDraft: (id, atMs, german) => {
         setRows((current) => reduceRows(current, { type: "draft", id, atMs, german }));
-        if (settingsRef.current.translateLive) void translateRef.current(id, german);
       },
       onFinal: (id, atMs, german) => {
         setRows((current) =>
@@ -169,6 +193,7 @@ export function App() {
     return () => {
       void session.stop();
       engine.stop();
+      translatorRef.current?.stop();
     };
   }, [stop]);
 
@@ -182,8 +207,9 @@ export function App() {
 
   async function start() {
     const engine = engineRef.current;
+    const translator = translatorRef.current;
     const session = sessionRef.current;
-    if (!engine || !session) return;
+    if (!engine || !translator || !session) return;
     setBanner("");
     setNote("");
     manualStop.current = false;
@@ -207,17 +233,37 @@ export function App() {
     setPhase("loading");
     filesRef.current = new Map();
     setProgress([]);
-    engine.onProgress = (item) => {
+    const onFile = (item: ModelProgress) => {
       if (!item.file || !item.total) return;
       filesRef.current.set(`${item.name}/${item.file}`, item);
       setProgress(groupProgress(filesRef.current.values()));
     };
+    engine.onProgress = onFile;
+    translator.onProgress = onFile;
+
+    const pair = pairOf(current);
+    const choice = builtinTranslator(current);
+    if (current.engine === "builtin") {
+      void translator
+        .ensure({
+          model: choice.id,
+          srcLang: choice.srcLang ?? null,
+          tgtLang: choice.tgtLang ?? null,
+        })
+        .catch((error: unknown) => {
+          if (generation !== startGeneration.current) return;
+          const message = errorText(error);
+          if (message !== "Stopped." && message !== "Restarting the models.") setBanner(message);
+        });
+    } else {
+      translator.stop();
+    }
 
     try {
       const info = await engine.load({
-        asrModel: SPEECH_MODELS[current.model].id,
-        mtModel: current.engine === "builtin" ? TRANSLATION_MODEL.id : null,
+        asrModel: pair.speech[current.model].id,
         device: current.device,
+        language: pair.source.whisper,
       });
       if (generation !== startGeneration.current) return;
       if (rowsRef.current.some((row) => row.kind === "line")) {
@@ -228,6 +274,7 @@ export function App() {
       await session.start(stream, {
         sensitivity: current.sensitivity,
         silenceMs: current.silenceMs,
+        maxSegmentMs: pair.maxSegmentMs,
       });
       if (generation !== startGeneration.current) return;
       setPhase("listening");
@@ -268,6 +315,11 @@ export function App() {
 
   const lineCount = useMemo(() => rows.filter((row) => row.kind === "line").length, [rows]);
   const locked = phase !== "idle";
+  const pair = pairOf(settings);
+
+  useEffect(() => {
+    document.title = pair.title;
+  }, [pair.title]);
   const showExample = phase === "idle" && lineCount === 0;
 
   return (
@@ -281,7 +333,7 @@ export function App() {
             </svg>
             <div>
               <h1>Nebenbei</h1>
-              <p>Live German, with English beside it.</p>
+              <p>{pair.tagline}</p>
             </div>
           </div>
 
@@ -349,21 +401,42 @@ export function App() {
           </div>
         ) : null}
 
+        <div className="pair-bar">
+          <div className="segmented" role="radiogroup" aria-label="Languages">
+            {(Object.keys(PAIRS) as PairId[]).map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={settings.pair === id}
+                className={settings.pair === id ? "is-selected" : undefined}
+                disabled={locked}
+                onClick={() => updateSettings({ pair: id })}
+              >
+                {PAIRS[id].label}
+              </button>
+            ))}
+          </div>
+          {pair.hint ? <p>{pair.hint}</p> : null}
+        </div>
+
         <div className="columns" aria-hidden="true">
           <h2>
-            German <span>as spoken</span>
+            {pair.source.name} <span>as spoken</span>
           </h2>
           <h2>
-            English <span>the same lines</span>
+            {pair.target.name} <span>the same lines</span>
           </h2>
         </div>
 
         <div className="stage" ref={scrollerRef} onScroll={onScroll}>
-          {showExample ? <Example source={settings.source} /> : null}
-          {phase === "loading" ? <ProgressCard groups={progress} engine={settings.engine} /> : null}
+          {showExample ? <Example source={settings.source} pairId={settings.pair} /> : null}
+          {phase === "loading" ? <ProgressCard groups={progress} settings={settings} /> : null}
           <Tickets
             rows={rows}
             translateLive={settings.translateLive}
+            source={pair.source}
+            target={pair.target}
             onEdit={(id, german) => {
               setRows((current) => reduceRows(current, { type: "edit", id, german }));
               if (settingsRef.current.translateLive) void translateLine(id, german);
@@ -415,7 +488,7 @@ export function App() {
             type="button"
             disabled={lineCount === 0}
             onClick={() => {
-              const text = transcriptToText(rows);
+              const text = transcriptToText(rows, { source: pair.source.code, target: pair.target.code });
               const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
               const url = URL.createObjectURL(blob);
               const link = document.createElement("a");
@@ -452,19 +525,21 @@ export function App() {
 }
 
 function footnote(settings: Settings, ready: ReadyInfo | null, phase: Phase): string {
+  const pair = pairOf(settings);
   if (phase === "loading") {
     return "The first start downloads the models into this browser. Later starts use that copy. The sound stays on this computer.";
   }
-  const speech = SPEECH_MODELS[settings.model].label.toLowerCase();
+  const speech = pair.speech[settings.model].label.toLowerCase();
   const device = ready?.device === "webgpu" ? "graphics chip" : "CPU";
   if (settings.engine === "ollama") {
     const model = settings.ollamaModel || "the model you choose";
-    return `German from the ${speech} speech model on the ${device}. English from Ollama (${model}), through this page only.`;
+    return `${pair.source.name} from the ${speech} speech model on the ${device}. ${pair.target.name} from Ollama (${model}), through this page only.`;
   }
-  return `German from the ${speech} speech model on the ${device}. English from the built-in translator, also in this browser.`;
+  return `${pair.source.name} from the ${speech} speech model on the ${device}. ${pair.target.name} from the built-in translator, also in this browser.`;
 }
 
-function Example({ source }: { source: ListenSource }) {
+function Example({ source, pairId }: { source: ListenSource; pairId: PairId }) {
+  const pair = PAIRS[pairId];
   return (
     <section className="intro">
       <div className="intro-copy">
@@ -473,7 +548,9 @@ function Example({ source }: { source: ListenSource }) {
             ? "Play the video in another browser tab. Start listening, choose that tab, and turn on “Share tab audio”. The video keeps playing where it is. This page only reads the sound."
             : "The microphone hears the room, including a video on your speakers. A shared browser tab is clearer when you can use one."}
         </p>
-        <p>Each phrase becomes a line. German stays on the left. English arrives on the right, or when you ask for it. Scroll up whenever you want to reread.</p>
+        <p>
+          Each phrase becomes a line. {pair.source.name} stays on the left. {pair.target.name} arrives on the right when the phrase settles, or when you ask for it. Scroll up whenever you want to reread.
+        </p>
       </div>
       <article className="ticket is-example">
         <div className="german-side">
@@ -481,14 +558,16 @@ function Example({ source }: { source: ListenSource }) {
             <time>00:12</time>
             <span className="live-tag">Example</span>
           </div>
-          <p lang="de" className="german">
-            Guten Abend, willkommen zur heutigen Sendung. Wir beginnen mit den Nachrichten aus Berlin.
+          <p lang={pair.source.lang} dir={pair.source.dir} className="german">
+            {pair.example.source}
           </p>
         </div>
-        <div className="english-side">
-          <p className="side-kicker">English</p>
-          <p lang="en" className="english">
-            Good evening, welcome to today’s broadcast. We begin with the news from Berlin.
+        <div className="english-side" dir={pair.target.dir}>
+          <p className="side-kicker" dir={pair.target.dir}>
+            {pair.target.name}
+          </p>
+          <p lang={pair.target.lang} dir={pair.target.dir} className="english">
+            {pair.example.target}
           </p>
         </div>
       </article>
@@ -496,14 +575,15 @@ function Example({ source }: { source: ListenSource }) {
   );
 }
 
-function ProgressCard({ groups, engine }: { groups: ProgressGroup[]; engine: Settings["engine"] }) {
+function ProgressCard({ groups, settings }: { groups: ProgressGroup[]; settings: Settings }) {
+  const pair = pairOf(settings);
   return (
     <section className="progress-card" aria-live="polite">
       <h2>Preparing on this computer</h2>
       <p>
-        {engine === "builtin"
-          ? "Downloading the speech model and the German-to-English translator. They stay in this browser afterwards."
-          : "Downloading the speech model. English will come from Ollama on this computer."}
+        {settings.engine === "builtin"
+          ? `Downloading the ${pair.source.name} speech model and the ${pair.target.name} translator. They stay in this browser afterwards.`
+          : `Downloading the ${pair.source.name} speech model. ${pair.target.name} will come from Ollama on this computer.`}
       </p>
       {groups.length === 0 ? (
         <p className="english-wait">Contacting the model files…</p>

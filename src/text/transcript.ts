@@ -13,7 +13,7 @@ const HALLUCINATIONS: RegExp[] = [
 export function cleanTranscript(raw: string): string {
   return raw
     .replace(/\s+/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\s+([,.;:!?،؛؟])/g, "$1")
     .trim();
 }
 

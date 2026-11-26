@@ -14,6 +14,9 @@ importers:
       '@fontsource/outfit':
         specifier: ^5.2.5
         version: 5.3.0
+      '@fontsource/vazirmatn':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@huggingface/transformers':
         specifier: 3.8.1
         version: 3.8.1
@@ -292,6 +295,9 @@ packages:
 
   '@fontsource/outfit@5.3.0':
     resolution: {integrity: sha512-0AVHzTTVJSxWDOxPKSfMeHhZeBFDU3cmgrcOb76ZEyhGo0+xgyG3GsLF3h9+X8w0IX7G4jzjJgFQEBiWdX6VgA==}
+
+  '@fontsource/vazirmatn@5.3.0':
+    resolution: {integrity: sha512-XC/2yN2r5gwhFT3klSuWaqncODX2DOfRYfNmbyzgtWYxHxMC+tcoaX+tgggrm6hSkEgpR1TuSDEf1PiI91G7qg==}
 
   '@huggingface/jinja@0.5.13':
     resolution: {integrity: sha512-jM17MqFily1iyT/1LD3r5w8/CZiyapVB0+7vOw48PfVtzyKsXStmHE4jVTyDAD05Tqv3un1xrS9ILUU1ugQAYQ==}
@@ -1353,6 +1359,8 @@ snapshots:
   '@fontsource/literata@5.3.0': {}
 
   '@fontsource/outfit@5.3.0': {}
+
+  '@fontsource/vazirmatn@5.3.0': {}
 
   '@huggingface/jinja@0.5.13': {}
 

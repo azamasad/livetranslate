@@ -10,6 +10,15 @@ describe("groupProgress", () => {
     expect(groups.map((group) => group.label)).toEqual(["German speech", "English translation"]);
     expect(groups[0]?.progress).toBe(50);
   });
+
+  it("names the English and Persian models", () => {
+    const groups = groupProgress([
+      { status: "progress", name: "Xenova/whisper-base.en", file: "encoder.onnx", loaded: 1, total: 2 },
+      { status: "progress", name: "Xenova/opus-mt-en-mul", file: "decoder.onnx", loaded: 1, total: 2 },
+      { status: "progress", name: "Xenova/nllb-200-distilled-600M", file: "encoder.onnx", loaded: 1, total: 4 },
+    ]);
+    expect(groups.map((group) => group.label)).toEqual(["English speech", "Persian translation"]);
+  });
 });
 
 describe("formatBytes", () => {

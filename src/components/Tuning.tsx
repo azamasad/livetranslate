@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SPEECH_MODELS, type Settings, type SpeechModelKey } from "../models";
+import { pairOf, type Settings, type SpeechModelKey } from "../models";
 import { fetchOllamaModels, type OllamaModel } from "../translate/ollama";
 
 type TuningProps = {
@@ -39,6 +39,10 @@ export function Tuning({ settings, locked, onChange }: TuningProps) {
     return () => controller.abort();
   }, [onChange, settings.engine]);
 
+  const pair = pairOf(settings);
+  const clear = pair.clear;
+  const builtinKind = clear && settings.translation === "clear" ? "clear" : "quick";
+
   return (
     <details className="tuning">
       <summary>Tuning</summary>
@@ -46,8 +50,8 @@ export function Tuning({ settings, locked, onChange }: TuningProps) {
         <fieldset disabled={locked}>
           <legend>Speech model</legend>
           <div className="choice-list">
-            {(Object.keys(SPEECH_MODELS) as SpeechModelKey[]).map((key) => {
-              const model = SPEECH_MODELS[key];
+            {(Object.keys(pair.speech) as SpeechModelKey[]).map((key) => {
+              const model = pair.speech[key];
               return (
                 <label key={key} className={settings.model === key ? "choice is-selected" : "choice"}>
                   <input
@@ -67,20 +71,34 @@ export function Tuning({ settings, locked, onChange }: TuningProps) {
         </fieldset>
 
         <fieldset disabled={locked}>
-          <legend>English</legend>
+          <legend>{pair.target.name}</legend>
           <div className="choice-list">
-            <label className={settings.engine === "builtin" ? "choice is-selected" : "choice"}>
+            <label className={settings.engine === "builtin" && builtinKind === "quick" ? "choice is-selected" : "choice"}>
               <input
                 type="radio"
                 name="engine"
-                checked={settings.engine === "builtin"}
-                onChange={() => onChange({ engine: "builtin" })}
+                checked={settings.engine === "builtin" && builtinKind === "quick"}
+                onChange={() => onChange({ engine: "builtin", translation: "quick" })}
               />
               <span>
-                <strong>Built in</strong>
-                <small>A German-to-English model in this browser. About 110 MB the first time.</small>
+                <strong>{pair.quick.label}</strong>
+                <small>{pair.quick.detail}</small>
               </span>
             </label>
+            {clear ? (
+              <label className={settings.engine === "builtin" && builtinKind === "clear" ? "choice is-selected" : "choice"}>
+                <input
+                  type="radio"
+                  name="engine"
+                  checked={settings.engine === "builtin" && builtinKind === "clear"}
+                  onChange={() => onChange({ engine: "builtin", translation: "clear" })}
+                />
+                <span>
+                  <strong>{clear.label}</strong>
+                  <small>{clear.detail}</small>
+                </span>
+              </label>
+            ) : null}
             <label className={settings.engine === "ollama" ? "choice is-selected" : "choice"}>
               <input
                 type="radio"
@@ -90,7 +108,7 @@ export function Tuning({ settings, locked, onChange }: TuningProps) {
               />
               <span>
                 <strong>Ollama</strong>
-                <small>Use a model you already run locally, when you want a looser English phrasing.</small>
+                <small>A model you already run locally. A small one is the model that can keep up.</small>
               </span>
             </label>
           </div>

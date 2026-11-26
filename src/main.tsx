@@ -6,6 +6,8 @@ import "@fontsource/literata/latin-600.css";
 import "@fontsource/outfit/latin-400.css";
 import "@fontsource/outfit/latin-500.css";
 import "@fontsource/outfit/latin-600.css";
+import "@fontsource/vazirmatn/arabic-400.css";
+import "@fontsource/vazirmatn/arabic-600.css";
 import "./styles.css";
 
 const root = document.getElementById("root");
