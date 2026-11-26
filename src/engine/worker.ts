@@ -97,8 +97,7 @@ async function handle(request: SpeechRequest): Promise<void> {
   });
 
   const output = await asr(audio, {
-    ...(asrLanguage ? { language: asrLanguage } : {}),
-    task: "transcribe",
+    ...(asrLanguage ? { language: asrLanguage, task: "transcribe" as const } : {}),
     max_new_tokens: 128,
     streamer,
   });

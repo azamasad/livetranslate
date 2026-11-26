@@ -7,7 +7,7 @@ export type CaptureHandle = {
 
 export async function acquireAudio(source: ListenSource): Promise<MediaStream> {
   if (!window.isSecureContext) {
-    throw new Error("Open this app from the local address npm start prints. The browser only shares audio from there.");
+    throw new Error("Open this page from the local address in the terminal, usually http://127.0.0.1:5173. The browser only shares the microphone from there.");
   }
   if (!navigator.mediaDevices) {
     throw new Error("This browser can’t share audio. Chrome or Edge can.");
@@ -15,15 +15,22 @@ export async function acquireAudio(source: ListenSource): Promise<MediaStream> {
 
   try {
     if (source === "mic") {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 1,
-        },
-        video: false,
-      });
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: { ideal: false },
+            noiseSuppression: { ideal: false },
+            autoGainControl: { ideal: false },
+            channelCount: { ideal: 1 },
+          },
+          video: false,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "OverconstrainedError") {
+          return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        }
+        throw error;
+      }
     }
 
     const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -38,7 +45,7 @@ export async function acquireAudio(source: ListenSource): Promise<MediaStream> {
     }
     return stream;
   } catch (error) {
-    if (error instanceof Error && /share has no audio|Open this app|can’t share audio/.test(error.message)) {
+    if (error instanceof Error && /share has no audio|Open this page|can’t share audio/.test(error.message)) {
       throw error;
     }
     if (error instanceof DOMException && error.name === "NotAllowedError") {

@@ -24,6 +24,53 @@ import { translateWithOllama } from "./translate/ollama";
 
 type Phase = "idle" | "loading" | "listening";
 
+type MicPermission = "unknown" | "granted" | "denied" | "prompt";
+
+function useMicPermission(active: boolean): MicPermission {
+  const [state, setState] = useState<MicPermission>("unknown");
+
+  useEffect(() => {
+    if (!active || !navigator.permissions?.query) return;
+    let permission: PermissionStatus | null = null;
+    let cancelled = false;
+    const apply = () => {
+      if (!permission || cancelled) return;
+      const next = permission.state;
+      setState(next === "granted" || next === "denied" || next === "prompt" ? next : "unknown");
+    };
+    navigator.permissions
+      .query({ name: "microphone" as PermissionName })
+      .then((status) => {
+        permission = status;
+        apply();
+        permission.onchange = apply;
+      })
+      .catch(() => {
+        if (!cancelled) setState("unknown");
+      });
+    return () => {
+      cancelled = true;
+      if (permission) permission.onchange = null;
+    };
+  }, [active]);
+
+  return active ? state : "unknown";
+}
+
+function listenStatus(phase: Phase, source: ListenSource, mic: MicPermission, quiet: boolean): string {
+  if (phase === "loading") return "Preparing";
+  if (phase === "listening") {
+    if (source === "mic") return quiet ? "Microphone on, no voice yet" : "Microphone is on";
+    return "Listening";
+  }
+  if (source === "mic") {
+    if (mic === "granted") return "Microphone allowed";
+    if (mic === "denied") return "Microphone blocked";
+    return "Start will ask for the microphone";
+  }
+  return "Ready";
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "Something went wrong.";
 }
@@ -32,7 +79,11 @@ function initialSettings(): Settings {
   const loaded = typeof localStorage === "undefined" ? { ...DEFAULT_SETTINGS } : loadSettings();
   const requested = typeof window === "undefined" ? null : pairFromSearch(window.location.search);
   if (!requested || loaded.pair === requested) return loaded;
-  const next = { ...loaded, pair: requested };
+  const next = {
+    ...loaded,
+    pair: requested,
+    ...(requested === "en-fa" ? { source: "mic" as const } : {}),
+  };
   saveSettings(next);
   return next;
 }
@@ -316,6 +367,8 @@ export function App() {
   const lineCount = useMemo(() => rows.filter((row) => row.kind === "line").length, [rows]);
   const locked = phase !== "idle";
   const pair = pairOf(settings);
+  const micPermission = useMicPermission(settings.source === "mic");
+  const statusText = listenStatus(phase, settings.source, micPermission, quiet);
 
   useEffect(() => {
     document.title = pair.title;
@@ -332,14 +385,14 @@ export function App() {
               <rect x="18" y="5" width="11" height="22" />
             </svg>
             <div>
-              <h1>Nebenbei</h1>
+              <h1>Zeinab</h1>
               <p>{pair.tagline}</p>
             </div>
           </div>
 
           <div className="listen-state" role="status">
             <span className={phase === "listening" ? "dot is-on" : "dot"} />
-            <span>{phase === "listening" ? "Listening" : phase === "loading" ? "Preparing" : "Ready"}</span>
+            <span>{statusText}</span>
             <LevelMeter levelRef={levelRef} active={phase === "listening"} />
           </div>
 
@@ -411,7 +464,7 @@ export function App() {
                 aria-checked={settings.pair === id}
                 className={settings.pair === id ? "is-selected" : undefined}
                 disabled={locked}
-                onClick={() => updateSettings({ pair: id })}
+                onClick={() => updateSettings(id === "en-fa" ? { pair: id, source: "mic" } : { pair: id })}
               >
                 {PAIRS[id].label}
               </button>
@@ -493,7 +546,7 @@ export function App() {
               const url = URL.createObjectURL(blob);
               const link = document.createElement("a");
               link.href = url;
-              link.download = "nebenbei.txt";
+              link.download = "zeinab.txt";
               link.click();
               URL.revokeObjectURL(url);
             }}
@@ -546,7 +599,7 @@ function Example({ source, pairId }: { source: ListenSource; pairId: PairId }) {
         <p>
           {source === "tab"
             ? "Play the video in another browser tab. Start listening, choose that tab, and turn on “Share tab audio”. The video keeps playing where it is. This page only reads the sound."
-            : "The microphone hears the room, including a video on your speakers. A shared browser tab is clearer when you can use one."}
+            : "The microphone hears speech around the laptop. Chrome asks for the microphone. Allow it, and point the laptop toward the person speaking."}
         </p>
         <p>
           Each phrase becomes a line. {pair.source.name} stays on the left. {pair.target.name} arrives on the right when the phrase settles, or when you ask for it. Scroll up whenever you want to reread.
