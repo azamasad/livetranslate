@@ -13,13 +13,16 @@ Speech recognition and the built-in translation run in the browser. There is no 
 
 ## On a Windows laptop
 
-Each time, from the `Desktop\Zeinab` folder:
+The one-time setup is `scripts/setup-windows.ps1`. It uses `npm.cmd` and `pnpm.cmd` so Windows PowerShell’s script block does not stop the install, refreshes PATH after Git and Node are installed, and puts the folder on the real Desktop, including when Desktop is inside OneDrive.
+
+Each later time:
 
 ```powershell
-pnpm start
+Set-Location (Join-Path ([Environment]::GetFolderPath("Desktop")) "Zeinab")
+pnpm.cmd start
 ```
 
-The browser opens the same page where the lines appear. **Microphone allowed** means Chrome can hear the room. **Start listening** begins, and **Stop** ends it. The meter beside that status moves when someone is speaking. Leave the terminal window open while you listen.
+Chrome opens http://127.0.0.1:5173. **Microphone allowed** means Chrome can hear the room. **Start listening** begins, and **Stop** ends it. Leave the PowerShell window open while you listen. If Windows asks whether Node may use the network, allow it. The page only talks to this computer. If Chrome never asks for the microphone, turn it on in Windows Settings under Privacy and security, Microphone, and allow desktop apps, then allow Chrome.
 
 ## Run it
 
