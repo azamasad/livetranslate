@@ -8,3 +8,5 @@ public/ort
 playwright-report
 test-results
 .venv
+__pycache__/
+*.pyc
