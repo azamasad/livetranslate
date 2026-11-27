@@ -1,6 +1,6 @@
 # Technical design: Zeinab for Windows
 
-Status: specification, before implementation.
+Status: specification, before implementation. Revision 2.
 Companion: [product requirements](prd.md), [test cases](test-cases.md).
 
 ## 1. Shape
@@ -17,7 +17,7 @@ Zeinab is a per-user Windows application with its own window. Speech and transla
                                                                 └──────────────────────────┘
 ```
 
-Capture stays in the window process so **Stop** can release the microphone without waiting for a model. The window sends 16 kHz mono PCM for a closed phrase, and may send a partial phrase no more than twice a second. The engine returns English text. The window then sends that finished English string for Persian. The two requests use different lanes inside the engine, so a Persian job cannot sit in front of the next English job.
+Capture stays in the window process so **Stop** can release the microphone without waiting for a model. The speech lane runs one job at a time. The window sends a finished phrase when the speaker pauses. It may also send one provisional slice of a phrase that is still open, and only when the speech lane is idle. The engine returns English text. The window sends Persian only for a finished line. A Persian job never occupies the speech lane.
 
 There is no HTTP server and no localhost port. The test suite checks that the process has no listening socket.
 
@@ -43,7 +43,7 @@ The i7-8565U has 4 cores and 8 hardware threads.
 - NLLB: 2 threads.
 - The window process does not run either model.
 
-Four Whisper threads leave room for the window and for Persian. If a measured session on this laptop shows Whisper missing the 3 second target while the CPU is idle, the speech thread count may be raised to 6 in a later build. That change is a measured follow-up, not the first setting.
+Four Whisper threads leave room for the window and for Persian. If a measured session on this laptop misses the English timing gate while the CPU is idle, the speech thread count may be raised to 6 in a later build. That change waits for the measurement.
 
 `condition_on_previous_text` is off. Live phrases must not be pulled toward whatever the model said a minute ago.
 
@@ -53,8 +53,8 @@ Four Whisper threads leave room for the window and for Persian. If a measured se
 2. Read float frames at the device mix format.
 3. Downmix to mono and resample to 16 kHz with a linear resampler. Quality of the resampler matters less than a stable rate. The implementation records the device rate in the log once per start.
 4. Compute a short RMS for the meter, about 20 times a second.
-5. Close a phrase when the level stays under the pickup threshold for 700 ms, or when the phrase reaches 12 seconds, whichever comes first. Phrases shorter than 250 ms are discarded.
-6. Pickup maps to the same idea as the browser page: a sensitivity number from 1.5 to 8, default 3.5, where a higher number accepts quieter speech. The exact RMS cut for 3.5 is fixed in code and covered by a unit test with a synthetic tone.
+5. Segment with the same rules as `SpeechSegmenter` in the browser page. The noise floor starts at 0.012 RMS. The threshold is `clamp(noise × sensitivity, 0.006, 0.2)`. Sensitivity defaults to 3.5 and may be set from 1.5 to 8. A higher number accepts quieter speech. Silence that closes a phrase is 700 ms. Speech shorter than 450 ms is discarded. A 240 ms pre-roll is kept. A phrase is forced closed at 8 seconds, which is longer than the browser page's 4.5 second English cap so a clause is not cut in half before turbo sees it.
+6. While a phrase is open and has already passed 2.5 seconds, and the speech lane is idle, the window may send that audio once with `"kind": "preview"`. If the lane is busy, no preview is sent. A second preview of the same phrase is not sent. When the phrase closes, the window sends the full audio with `"kind": "final"`. A preview still running for that line is cancelled first.
 
 On **Stop**, capture ends, queued audio is dropped, and the current engine job is cancelled.
 
@@ -68,13 +68,12 @@ The engine loads Whisper once and keeps it for the life of the process.
 
 For each phrase:
 
-- Language is English. The model is the multilingual turbo checkpoint used as English-only by passing the language explicitly. Turbo accepts a language. This is different from `whisper-*.en` in the browser, which rejects a language flag.
-- Beam size 1. Temperature 0. This is the live setting. A slower beam search is out of scope.
-- `no_speech_prob` above 0.6 discards the phrase.
+- Language is English and the task is transcribe. Turbo is a multilingual checkpoint, so the language is passed in. Beam size 1. Temperature 0. The engine's own voice-activity trim is off, because the window already cut the phrase.
+- `no_speech_prob` above 0.6 discards the phrase. A discarded preview clears the provisional words and leaves the line open. A discarded final closes the line with no text and does not call Persian.
 - The hallucination filter from `src/text/transcript.ts` is applied to the English string before it is shown and before it is sent for translation. The same helper is the specification: repeated short clauses, "thanks for watching", and a bare music or applause caption are dropped.
 - Overlap with the previous finished line is trimmed with the same 3-to-8 word rule as `stripOverlap`.
 
-Partials may be rough. They are replaced by the finished English for that phrase. Persian is requested only for the finished string, and only when that string is non-empty after the filter.
+A preview is shown as unfinished English and is never sent to Persian. The final result replaces it on the same `line` id. Persian is requested only for a non-empty final. Running turbo on a growing buffer several times a second is out of the design: on this 4-core CPU that queue would push the finished line past the timing gate.
 
 ## 6. Persian
 
@@ -88,27 +87,30 @@ NLLB is loaded once, in the same engine process, on its own lane.
 
 ## 7. Window and the engine protocol
 
-Frames are length-prefixed UTF-8 JSON on the engine's stdin and stdout. One direction, one request at a time per lane. Lanes are `speech` and `translate`.
+Frames are a 4-byte little-endian length followed by UTF-8 JSON, on the engine's stdin and stdout. A frame larger than 2,000,000 bytes is a protocol error and the window restarts the engine. The speech lane has one job in flight. The translate lane has its own queue and does not block speech. Cancel applies to one id.
 
 Window to engine:
 
 ```json
-{ "lane": "speech", "id": 12, "pcm16k": "<base64 of float32 little-endian>" }
-{ "lane": "translate", "id": 9, "text": "The meeting starts at three." }
+{ "lane": "speech", "id": 12, "line": 4, "kind": "preview", "pcm16k": "<base64 of float32 little-endian>" }
+{ "lane": "speech", "id": 13, "line": 4, "kind": "final", "pcm16k": "<base64 of float32 little-endian>" }
+{ "lane": "translate", "id": 14, "line": 4, "text": "The meeting starts at three." }
 { "lane": "cancel", "id": 12 }
 ```
 
 Engine to window:
 
 ```json
-{ "lane": "speech", "id": 12, "ok": true, "text": "The meeting starts at three." }
-{ "lane": "translate", "id": 9, "ok": true, "text": "جلسه ساعت سه شروع میشه." }
-{ "lane": "speech", "id": 12, "ok": false, "error": "The speech model returned nothing." }
+{ "lane": "speech", "id": 13, "line": 4, "kind": "final", "ok": true, "text": "The meeting starts at three." }
+{ "lane": "translate", "id": 14, "line": 4, "ok": true, "text": "جلسه ساعت سه شروع میشه." }
+{ "lane": "speech", "id": 12, "line": 4, "kind": "preview", "ok": false, "error": "cancelled" }
 ```
 
-Audio is base64 only across this pipe, and only for the phrase just closed. It is not written to the log. A large phrase is bounded by the 12 second cut: 16 kHz float32 for 12 seconds is about 768 KB before base64.
+`kind` is `preview` or `final`. The window ignores a result whose `line` is no longer on screen, and it ignores a preview that arrives after the final for that line. Audio crosses this pipe as base64 and is not written to the log. An 8 second phrase is 16 kHz float32, about 512 KB before base64.
 
-The engine's first message after load is `ready`, with the model ids and the checksums it actually loaded. The window refuses to enable **Start listening** until that message matches the manifest.
+The engine also emits log events on stdout, on a `log` lane, with the fields allowed in section 10. It does not print recognized text or audio to stderr. Stderr is crash text only, and diagnostics include at most the last 20 stderr lines after dropping any line longer than 200 characters.
+
+The window starts the engine after the files verify, as part of launch, so **Start listening** does not pay the model load. The engine's first message is `ready`, with the model ids and the checksums it loaded. **Start listening** stays disabled until that message matches the manifest.
 
 If the engine process exits, the window reports that Zeinab's listener stopped, returns to idle, and can start the engine again on the next **Start listening**. Lines already on screen stay.
 
@@ -121,7 +123,7 @@ All paths are under `%LOCALAPPDATA%\Zeinab\`.
 | `app\` | The installed program, owned by the installer. |
 | `models\whisper-large-v3-turbo-int8\` | CTranslate2 model directory. |
 | `models\nllb-200-distilled-600M-int8\` | CTranslate2 model directory. |
-| `models\manifest.json` | Pinned URLs, byte sizes, and SHA-256 for every file. Checked into the app, not downloaded. |
+| `models\verified.json` | Written by the app after a hash check: model id and SHA-256. Not a substitute for the manifest. |
 | `settings.json` | Microphone id, text size, follow flag, sensitivity. No lines. |
 | `logs\zeinab.log` | Diagnostics. Rotated at 2 MB, three files kept. |
 
@@ -144,11 +146,11 @@ EN  The meeting starts at three.
 FA  جلسه ساعت سه شروع میشه.
 ```
 
-The clock is the time since **Start listening**, `mm:ss`, and `h:mm:ss` after an hour. A missing Persian cell is the em dash `—`, same as the browser exporter.
+The clock is the time since the first **Start listening** of this window. **Stop** and a later **Start listening** do not reset it, so a saved file stays in order. **Clear** resets it. The format is `mm:ss`, and `h:mm:ss` after an hour. A missing Persian cell is `—`, the same character the browser exporter uses.
 
 ## 9. Model manifest
 
-The manifest is source, reviewed with the code. Each entry has:
+The manifest ships inside the app, as source reviewed with the code. It is not downloaded and it is not the file under `models\`. Each entry has:
 
 - a stable id (`whisper-large-v3-turbo-int8`, `nllb-200-distilled-600M-int8`)
 - the HTTPS URL of each file
@@ -206,14 +208,21 @@ Shared behavior worth keeping identical, so a test written for one is readable f
 
 | Risk | What we will do |
 | --- | --- |
-| Turbo int8 still misses the 3 second bar on this CPU | Record the measured delay. The hand-over bar fails. The follow-up is thread count, then a shorter beam, not a silent switch back to the small model. |
+| Turbo int8 misses the 6 second median on this CPU | Record every Fixture A timing. The hand-over bar fails. The follow-up is the thread count. The build does not quietly switch back to the small model. |
 | Across the room, the words are still poor | The 3 meter result is written down. The microphone placement is part of the note she gets. A different model is not promised as the fix. |
 | SmartScreen or antivirus blocks the installer or `zeinab-engine` | The install note is the mitigation for SmartScreen. If an antivirus quarantines the engine, that is a release blocker and is recorded with the product name of the antivirus. |
 | CTranslate2's Windows build is large | Accept it if the app still installs per-user and starts offline. Revisit only if the installer cannot be copied onto this laptop. |
 | WebView2 is missing | Windows 11 includes it. If the probe fails, the window says to install the WebView2 runtime from Microsoft and stops. It does not fall back to opening Chrome. |
 | A late Persian result lands on a cleared screen | Results carry the line id. The window drops an id it no longer has. |
 
-## 14. Build
+## 14. Decisions in revision 2
+
+- Trusted English is the decode that starts when the phrase closes. A preview is one idle-lane job per open phrase, after 2.5 seconds, and it is never translated. A continuous decode of the growing buffer was dropped because it would stack jobs on this CPU.
+- The hand-over gate is a 6 second median and a 10 second cap on Fixture A, scored with a checklist. A 3 second median is recorded and is not required. The earlier 3 second line was a wish made before any timing on this processor.
+- Phrase length, silence, and the noise threshold match the browser segmenter. The forced close is 8 seconds.
+- The manifest is part of the app. `models\verified.json` is only a local record of a check that already used the manifest.
+
+## 15. Build
 
 The desktop program will live in `desktop/` when implementation starts. This document does not add that tree.
 

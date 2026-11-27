@@ -2,6 +2,8 @@
 
 These documents specify a Windows program that listens through the laptop microphone and shows English beside Persian. The program is not built yet. The page that opens from PowerShell is a separate product and stays as it is.
 
+Revision 2 corrects the live-English promise. The line she can trust is decoded when the phrase ends. One provisional reading may appear during a longer phrase. The laptop gate is a measured median on a scored script, not an untimed 3 second claim.
+
 Read them in this order:
 
 1. [Product requirements](prd.md) — who it is for, what it must do, and what "good enough" means on the Lenovo laptop.

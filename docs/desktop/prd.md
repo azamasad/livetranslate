@@ -1,6 +1,6 @@
 # Product requirements: Zeinab for Windows
 
-Status: specification, before implementation.
+Status: specification, before implementation. Revision 2.
 Product name: Zeinab.
 Platform: Windows 11, 64-bit, on the Lenovo laptop described in the [index](README.md).
 Replaces: nothing. The browser page remains the lighter listener.
@@ -27,7 +27,7 @@ Someone else may install it for her and may later collect a diagnostics file if 
 2. The first launch downloads two model files and shows progress. When they are ready, the window says Zeinab is ready.
 3. Later she opens Zeinab from the Start menu. The window comes up empty.
 4. She presses **Start listening**. Windows may ask the first time whether desktop apps may use the microphone. She allows it.
-5. She watches the meter. When someone speaks, English appears while they are still talking. When the phrase settles, Persian appears on that same line.
+5. She watches the meter. While someone is speaking, the line is open. A longer phrase may show one provisional English reading. The English she can trust is the finished line, which appears after the person pauses. Persian is added to that finished line.
 6. She presses **Stop** when she wants the microphone off.
 7. If she wants a copy of the session, she presses **Save text** and picks a place. Otherwise she closes the window and the lines are gone.
 
@@ -39,7 +39,7 @@ These are fixed for the first version.
 - The microphone is how it hears. It listens to the room, including a television or a person who is not wearing a headset.
 - There is one speech model: a CTranslate2 int8 conversion of `openai/whisper-large-v3-turbo`. There is no Fast / Balanced / Sharper picker. Those smaller models are why the browser page fell short, and offering them again invites a worse session.
 - There is one translation model: a CTranslate2 int8 conversion of `facebook/nllb-200-distilled-600M`, from `eng_Latn` to `pes_Arab` (Western Persian, not Dari).
-- English is shown as soon as that phrase is recognized. Persian is filled in afterwards and must not freeze the English column.
+- The trusted English line is the decode of the whole phrase, started when the phrase closes. A provisional reading is optional and is never translated. Persian is filled in after the trusted line and must not freeze the English column.
 - Audio is not stored. Lines are kept in memory for the open window only.
 - The only transcript file is the one **Save text** writes, and only after she chooses a path.
 - Settings that may persist are the chosen microphone, the text size, whether the view follows the live line, and the pickup sensitivity.
@@ -52,18 +52,30 @@ These are fixed for the first version.
 The layout follows the browser page so the two products are recognizable as the same tool.
 
 - The title is Zeinab.
-- A status line and a level meter. The status is one of: **Ready**, **Microphone allowed**, **Microphone blocked**, **Preparing**, **Microphone on, no voice yet**, **Microphone is on**.
-- **Start listening** and **Stop**. **Start listening** is available when the program is idle. **Stop** is available while it is listening. During model load the button is **Cancel**.
+- A status line and a level meter. The status is one sentence from the table below.
+- **Start listening**, **Stop**, **Cancel**, and **Retry**. Only one of these is the primary button. **Start listening** is shown when the models are ready and the microphone is idle. **Stop** is shown while listening. **Cancel** is shown during the first download. **Retry** is shown when a download or a model check failed.
 - Two columns. English is left to right. Persian is right to left, in a Persian-capable face (Vazirmatn, bundled with the app so the first offline launch can draw it).
-- Each finished line shows both languages. A line still being heard shows English only, marked as live.
+- Each finished line shows both languages. A line still open shows either no words yet or one provisional English reading, marked so it is visibly unfinished. Provisional English is replaced by the finished English for that same line. It is not a second line.
 - **Follow the live line**. When it is on, the view stays on the newest line. When it is off, scrolling up holds the place.
 - Text size: **Smaller**, **Reading**, **Larger**. The choice survives a restart.
 - **Save text** and **Clear**. **Save text** is disabled when there are no lines. **Clear** asks for a second click before it removes the lines.
 - **Tuning** holds pickup sensitivity only. It does not hold a model picker.
 - A device menu lists input devices and remembers the last one.
-- **Save diagnostics** is in a menu, not beside the transcript, so it is not pressed by accident during a talk.
+- **Save diagnostics** and **About** are in a menu, not beside the transcript. **About** shows the app version and the two model ids.
 
 Empty state, before the first **Start listening** of a window: a short example line so the columns are obvious, replaced as soon as a real line exists. The example is not saved and is not a real transcript.
+
+| State | Status sentence | Primary button |
+| --- | --- | --- |
+| Models downloading or loading | Preparing | Cancel, while bytes are still moving. Hidden once the files are on disk and the models are loading. |
+| Download or checksum failed | The speech model has to be downloaded again. or The Persian model has to be downloaded again. | Retry |
+| Ready, microphone not yet requested | Start will ask for the microphone | Start listening |
+| Ready, microphone already allowed | Microphone allowed | Start listening |
+| Ready, Windows is blocking desktop apps | Microphone blocked | Start listening, which explains the Settings page and does not start capture |
+| Listening, under the pickup level | Microphone on, no voice yet | Stop |
+| Listening, over the pickup level | Microphone is on | Stop |
+| Selected device gone | The microphone was disconnected | Start listening |
+| Engine process gone | The listener stopped | Start listening |
 
 ## 6. Functional requirements
 
@@ -75,7 +87,7 @@ Empty state, before the first **Start listening** of a window: a short example l
 | FR-4 | English is the left column, `lang=en`, left to right. Persian is the right column, `lang=fa`, right to left. |
 | FR-5 | **Start listening** captures from the selected input. **Stop** releases it. A second start works in the same window. |
 | FR-6 | While listening, the meter moves with the room, and the status distinguishes silence from voice. |
-| FR-7 | A phrase still in progress can update the English cell. Persian for that line waits until the phrase is finished. |
+| FR-7 | An open phrase may show at most one provisional English reading. The finished English replaces it on the same line. Persian is requested only for the finished English. |
 | FR-8 | A finished English line stays visible if Persian is still working. A new English phrase can start during that wait. |
 | FR-9 | **Save text** writes UTF-8, with a timestamp, `EN`, and `FA` for each finished line, to a path she chooses. The default file name is `zeinab.txt`. |
 | FR-10 | Closing the window and opening it again shows no previous lines. |
@@ -88,6 +100,9 @@ Empty state, before the first **Start listening** of a window: a short example l
 | FR-17 | Known Whisper silence-hallucinations ("thanks for watching", a bare "music", the same short clause repeated) are dropped and are not translated. |
 | FR-18 | **Stop** returns the window to idle within 300 ms of the click, even if a translation is still running. That translation is discarded. |
 | FR-19 | The program does not listen on a TCP or UDP port. |
+| FR-20 | **About** shows a version string that changes when the installer changes. |
+| FR-21 | Closing the window releases the microphone. The next launch has no lines. |
+| FR-22 | **Cancel** during a download stops the transfer. The next launch can continue. A half-written file is not treated as a model. |
 
 ## 7. Privacy
 
@@ -108,7 +123,7 @@ These are acceptance targets for the first build. They are not measurements. The
 
 | Target | Bar |
 | --- | --- |
-| English, quiet room, clear voice about 1 meter from the laptop, sentence under 8 seconds | After she stops speaking, the finished English line is on screen within 3 seconds. A reader who knows the script can recover the sentence. Small function words may differ. Names and numbers in the script match. |
+| English, quiet room, clear voice about 1 meter from the laptop, Fixture A | The median time from the end of a sentence to its finished English line is 6 seconds or less, and no sentence takes more than 10 seconds. The scorer uses the checklist in the test cases. A 3 second median is recorded if it happens. It is not the gate. Decoding starts when the phrase closes, and this CPU has not been timed yet. |
 | Same setup at about 3 meters, television off | The line may miss more function words. The names and the action of the sentence are still recognizable. If they are not, the result is recorded and the build is not described as ready for across-the-room use. |
 | Persian | Once English for that line is final, Persian is filled in within 4 seconds for a sentence under about 30 English words. |
 | Quiet room, nobody speaking, 2 minutes | No line appears. Whisper must not invent a paragraph from silence. |
@@ -131,7 +146,7 @@ A failure of the 1 meter English target blocks handing the program over. A failu
 The first build is ready to give her when:
 
 - The installer and the offline relaunch pass on her laptop.
-- The 1 meter English target and the Persian target pass on a scripted passage read in that room.
+- The 1 meter English target and the Persian target pass on Fixture A, scored with the checklist in the test cases.
 - The silence test produces no invented lines.
 - A unique sentence spoken in the test does not appear in the log or in the diagnostics file.
 - **Save text** is the only file that contains that sentence, and only after the button is used.

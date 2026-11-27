@@ -1,6 +1,6 @@
 # Test cases: Zeinab for Windows
 
-Status: the plan for the program specified in the [PRD](prd.md) and the [technical design](technical-design.md). The program is not built, so none of these have been run.
+Status: the plan for the program specified in the [PRD](prd.md) and the [technical design](technical-design.md). Revision 2. The program is not built, so none of these have been run.
 
 ## How to read a case
 
@@ -37,7 +37,10 @@ Automated cases run on a development machine. They do not replace the laptop cas
 | FR-17 hallucinations dropped | TC-41, TC-42 |
 | FR-18 Stop is quick | TC-12 |
 | FR-19 no listening port | TC-43 |
-| 1 meter English target | TC-31 |
+| FR-20 version in About | TC-08 |
+| FR-21 close releases the microphone | TC-07 |
+| FR-22 cancel a download | TC-06 |
+| 1 meter English target | TC-31, checklist below |
 | 3 meter English target | TC-33 |
 | Persian target | TC-32 |
 | 30 minute memory | TC-34 |
@@ -96,6 +99,27 @@ Automated cases run on a development machine. They do not replace the laptop cas
 
 ## Window
 
+### TC-06 Cancel leaves no half-model
+
+- Priority: P0. Where: laptop.
+- Steps:
+  1. Start the first launch and wait until bytes are moving.
+  2. Press **Cancel**.
+  3. Launch Zeinab again and let the download finish.
+- Expected: after **Cancel**, **Start listening** is not available. No file that failed its hash is loaded. The second launch reaches ready, and every loaded file matches the manifest.
+
+### TC-07 Closing the window releases the microphone
+
+- Priority: P0. Where: laptop.
+- Steps: start listening, then close the window with the system close button. Try to record a short clip in another app. Launch Zeinab again.
+- Expected: the other app can use the microphone. The new window has no lines from the previous session.
+
+### TC-08 About shows the build
+
+- Priority: P1. Where: laptop.
+- Steps: open **About**. Compare the version with the version named in the test note and the installer file name.
+- Expected: the three match. Both model ids are shown.
+
 ### TC-10 Columns
 
 - Priority: P0. Where: both.
@@ -131,7 +155,7 @@ Automated cases run on a development machine. They do not replace the laptop cas
 
 - Priority: P0. Where: laptop.
 - Steps: read the first sentence of Fixture A slowly.
-- Expected: the English cell changes while the sentence is still being read. Persian for that line appears only after the reader has stopped and the line closes. The finished English replaces the partial rather than duplicating it as a second line.
+- Expected: if English appears before the reader finishes, it is marked unfinished, there is only one such reading, and it occupies the same line as the finished English. Persian appears only after the line closes. A phrase shorter than 2.5 seconds may show no provisional reading at all. That is a pass.
 
 ### TC-15 A slow Persian line does not stall the next English line
 
@@ -225,14 +249,14 @@ Do these in a quiet room, television off, after TC-04 so the network is not part
 
 - Priority: P0. Where: laptop.
 - Steps: sit about 1 meter from the laptop. Read Fixture A at a conversational pace, three times, with a pause between sentences.
-- Expected: each run's finished English is on screen within 3 seconds of the end of the sentence. A second reader can recover every sentence. The names `Mona` and `Shiraz`, and the numbers `3` and `14`, match. Function words may differ. Record the three timings.
+- Expected: nine timings, three readings of three sentences. The median is 6 seconds or less. None is over 10 seconds. Each sentence passes the [checklist](#scoring-checklist). Record all nine numbers. If the median is also 3 seconds or less, write that down. It is not required for a pass.
 
 ### TC-32 Persian follows the finished English
 
 - Priority: P0. Where: laptop.
 - Preconditions: TC-31.
 - Steps: for each finished line in TC-31, time the Persian cell.
-- Expected: Persian arrives within 4 seconds of the finished English for each Fixture A sentence. The Persian is in Arabic script, right to left. A reader of Persian can tell it is the same sentence. Record the three timings and keep one saved `zeinab.txt` from this run in the test note.
+- Expected: for each of the nine finished lines, Persian arrives within 4 seconds of the finished English. The Persian is in Arabic script, right to left. A Persian reader marks each line **same**, **related**, or **wrong** using the checklist. At least two sentences in each reading are **same**, and none is **wrong** on the name or the number. Record the nine timings and keep one `zeinab.txt` from this run.
 
 ### TC-33 Three meters
 
@@ -245,6 +269,12 @@ Do these in a quiet room, television off, after TC-04 so the network is not part
 - Priority: P1. Where: laptop.
 - Steps: start listening. For 30 minutes, alternate a minute of quiet with a short sentence. Note the process memory just after the models are loaded, at 15 minutes, and at 30 minutes.
 - Expected: the window still starts and stops. Memory at 30 minutes is less than 300 MB above the post-load number. The log has grown only by events, and a search for a unique sentence spoken near the end obeys TC-18.
+
+### TC-36 Television on
+
+- Priority: P1. Where: laptop.
+- Steps: play a television or a video with speech at a normal room volume, about 2 meters from the laptop. Read sentence 1 of Fixture A once from 1 meter.
+- Expected: write down the English exactly. This case records whether a second voice in the room destroys the line. A failure does not by itself block hand-over. The note says so in those words.
 
 ### TC-35 Fast talk
 
@@ -304,11 +334,37 @@ These use a WAV fixture checked into the repo when the desktop tree exists, 16 k
 - Steps: point one manifest URL at `http://example.com/model.bin`, and another at `https://example.com/model.bin`.
 - Expected: both are rejected before any connection. The downloader's allow list is exactly the hosts written in the real manifest.
 
+### TC-49 The speech lane stays single-file
+
+- Priority: P0. Where: auto.
+- Steps:
+  1. With a speech job already in flight, offer a preview of the open phrase.
+  2. In a second run, let a preview be in flight, then close the phrase.
+- Expected: the busy lane does not accept the preview. Closing the phrase cancels that preview id before the final audio is sent. The translate lane receives the final text and does not receive the preview text.
+
 ### TC-48 Cancel drops audio
 
 - Priority: P0. Where: auto.
 - Steps: queue a speech job, send cancel, then inspect the engine's in-memory phrase buffer.
 - Expected: the buffer for that id is released. No file appears under `%LOCALAPPDATA%\Zeinab` other than settings and logs.
+
+## Scoring checklist
+
+Score finished English only. Provisional words are not scored. Function words (`is`, `the`, `and`, `at`, `we`, `will`) are not scored.
+
+| Sentence | Passes when these are present |
+| --- | --- |
+| Mona is coming from Shiraz at 3. | A name a listener accepts as Mona. A place a listener accepts as Shiraz (`Shiraz` or `Sheraz`). A coming or arrival. The number 3. |
+| The meeting starts at 14 hundred, and we will take questions after. | The meeting. A start. A time a listener accepts as 14:00 (`14`, `1400`, `fourteen hundred`). Questions. |
+| Please send the notes to the group before you leave the room. | At least four of: send, notes, group, leave, room. |
+
+Persian, marked by someone who reads Persian:
+
+- **Same**: a listener gets the same people, place, number, and action.
+- **Related**: the topic is recognizable and a name or number is wrong or missing.
+- **Wrong**: a listener would act on a different fact.
+
+**Related** fails the name-and-number rule in TC-32. **Wrong** fails TC-32.
 
 ## Fixture A
 
@@ -326,7 +382,8 @@ For a laptop run, keep one note next to the build number:
 
 - installer version and the manifest ids
 - Windows build, and whether SmartScreen appeared
-- the three TC-31 timings and the three TC-32 timings
+- all nine TC-31 timings, their median, and the checklist result for each sentence
+- all nine TC-32 timings, and each Persian mark: same, related, or wrong
 - the TC-33 transcript, copied from the window
 - the TC-30 result
 - the TC-34 memory numbers
