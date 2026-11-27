@@ -55,6 +55,10 @@ The first English start downloads about 80 MB for speech and about 900 MB for Cl
 
 The built-in translator is the right default for live lines. If you already run [Ollama](https://ollama.com), Tuning can send the translation there instead. Start Ollama first. Zeinab talks to it only on this computer, at `127.0.0.1:11434`. A small model is the one that can keep up.
 
+## Desktop program
+
+A separate Windows program, with its own window and a larger English model, is specified and not built yet. The page above stays the one the PowerShell command starts. The specification is in [docs/desktop](docs/desktop/README.md): the product requirements, the technical design, and the test cases that have to pass on the laptop before that program is handed over.
+
 ## Checks
 
 ```bash
