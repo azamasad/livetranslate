@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Zeinab</title>
+    <style>
+      :root { color-scheme: light; font-family: "Literata", "Iowan Old Style", Georgia, serif; }
+      body { margin: 0; background: #f4f1ea; color: #241f1a; }
+      header, main { padding: 20px 28px; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+      h1 { font-family: "Outfit", "Avenir Next", sans-serif; font-weight: 560; font-size: 28px; margin: 0; }
+      button { font: inherit; border: 1px solid #241f1a; background: #241f1a; color: #f4f1ea; padding: 8px 14px; cursor: pointer; }
+      button.quiet { background: transparent; color: #241f1a; }
+      .status { display: flex; gap: 10px; align-items: center; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; background: #b7b1a6; display: inline-block; }
+      .dot.on { background: #2f6f4e; }
+      .meter { width: 72px; height: 8px; background: #e4dfd4; }
+      .meter > span { display: block; height: 100%; background: #2f6f4e; width: 0%; }
+      .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      article { background: #fffdf8; padding: 14px 16px; margin: 0 0 10px; }
+      [dir="rtl"] { font-family: "Vazirmatn", "Noto Naskh Arabic", sans-serif; }
+      .live { opacity: 0.72; }
+      .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 16px; }
+      .hint { color: #6d645b; }
+      @media (max-width: 720px) { .columns { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Zeinab</h1>
+        <p class="status"><span id="dot" class="dot"></span><span id="status">Preparing</span><span class="meter"><span id="level"></span></span></p>
+      </div>
+      <button id="primary" type="button">Start listening</button>
+    </header>
+    <main>
+      <div class="toolbar">
+        <button id="save" class="quiet" type="button" disabled>Save text</button>
+        <button id="clear" class="quiet" type="button" disabled>Clear</button>
+        <button id="diagnostics" class="quiet" type="button">Save diagnostics</button>
+        <button id="about" class="quiet" type="button">About</button>
+      </div>
+      <div class="columns">
+        <section><h2>English</h2><div id="english"></div></section>
+        <section><h2>Persian</h2><div id="persian"></div></section>
+      </div>
+    </main>
+    <script>
+      const status = document.querySelector("#status");
+      const primary = document.querySelector("#primary");
+      const english = document.querySelector("#english");
+      const persian = document.querySelector("#persian");
+      async function tick() {
+        if (!window.pywebview) return;
+        const view = await window.pywebview.api.snapshot();
+        status.textContent = view.status;
+        document.querySelector("#dot").className = view.listening ? "dot on" : "dot";
+        document.querySelector("#level").style.width = Math.round((view.level || 0) * 100) + "%";
+        primary.textContent = view.button;
+        document.querySelector("#save").disabled = !view.canSave;
+        document.querySelector("#clear").disabled = !view.canSave;
+        english.replaceChildren();
+        persian.replaceChildren();
+        if (!view.lines.length) {
+          english.append(example("Let's start with a short update, and then I'll take your questions."));
+          const fa = example("بیایید با یک گزارش کوتاه شروع کنیم، بعد سؤال‌هایتان را می‌گیرم.");
+          fa.dir = "rtl";
+          fa.lang = "fa";
+          persian.append(fa);
+          return;
+        }
+        for (const line of view.lines) {
+          const en = document.createElement("article");
+          en.lang = "en";
+          en.className = line.live ? "live" : "";
+          en.textContent = line.english || "…";
+          english.append(en);
+          const fa = document.createElement("article");
+          fa.lang = "fa";
+          fa.dir = "rtl";
+          fa.textContent = line.persian || line.persianError || (line.live ? "" : "—");
+          persian.append(fa);
+        }
+      }
+      function example(text) {
+        const node = document.createElement("article");
+        node.className = "hint";
+        node.textContent = text;
+        return node;
+      }
+      primary.addEventListener("click", () => window.pywebview && window.pywebview.api.primary());
+      document.querySelector("#save").addEventListener("click", () => window.pywebview.api.save_text());
+      document.querySelector("#clear").addEventListener("click", () => window.pywebview.api.clear_lines());
+      document.querySelector("#diagnostics").addEventListener("click", () => window.pywebview.api.save_diagnostics());
+      document.querySelector("#about").addEventListener("click", () => window.pywebview.api.about());
+      setInterval(tick, 200);
+      window.addEventListener("pywebviewready", tick);
+    </script>
+  </body>
+</html>

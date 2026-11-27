@@ -1,0 +1,9 @@
+[project]
+name = "zeinab-desktop"
+version = "0.1.0"
+description = "Zeinab for Windows: English beside Persian, on the CPU."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
