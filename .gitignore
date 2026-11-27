@@ -7,3 +7,4 @@ public/ort
 .DS_Store
 playwright-report
 test-results
+.venv

@@ -57,7 +57,7 @@ The built-in translator is the right default for live lines. If you already run 
 
 ## Desktop program
 
-A separate Windows program, with its own window and a larger English model, is specified and not built yet. The page above stays the one the PowerShell command starts. The specification is in [docs/desktop](docs/desktop/README.md): the product requirements, the technical design, and the test cases that have to pass on the laptop before that program is handed over.
+A separate Windows program, with its own window and a larger English model, is specified in [docs/desktop](docs/desktop/README.md). The first source build is in [desktop](desktop/README.md). It is not the installer yet, and the page above stays the one the PowerShell command starts. The laptop checks in the test plan still have to be run on the Lenovo before that program is handed over.
 
 ## Checks
 
